@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content">
+<title>Nobody Warned You</title>
+<style>
+  :root{
+    --bg: #f5f1ec;
+    --paper: #fffdf9;
+    --ink: #2b241f;
+    --ink-soft: #5b5147;
+    --rust: #b5502e;
+    --rust-dark: #8c3c21;
+    --line: #e2d8cb;
+    --bubble-user: #2b241f;
+    --bubble-user-text: #fffdf9;
+    --bubble-ai: #fff;
+    --chip: #efe6da;
+    --chip-hover: #e5d8c6;
+  }
+  * { box-sizing: border-box; }
+  html, body{
+    height: 100%;
+  }
+  body{
+    margin:0;
+    font-family: Georgia, 'Iowan Old Style', 'Times New Roman', serif;
+    background: var(--bg);
+    color: var(--ink);
+    display:flex;
+    justify-content:center;
+    height: 100vh;
+    height: 100dvh; /* accounts for mobile browser chrome + on-screen keyboard */
+    overflow: hidden; /* only .chat scrolls -- keeps the input pinned in view */
+  }
+  .app{
+    width:100%;
+    max-width:640px;
+    display:flex;
+    flex-direction:column;
+    height: 100%;
+    background: var(--paper);
+    border-left:1px solid var(--line);
+    border-right:1px solid var(--line);
+  }
+  header{
+    padding: 28px 28px 18px;
+    border-bottom:1px solid var(--line);
+  }
+  header h1{
+    margin:0 0 4px;
+    font-size: 26px;
+    letter-spacing: -0.01em;
+  }
+  header p{
+    margin:0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 13px;
+    color: var(--ink-soft);
+    line-height:1.5;
+  }
+  .topics{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    padding: 16px 28px;
+    border-bottom:1px solid var(--line);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  .chip{
+    background: var(--chip);
+    border: none;
+    color: var(--ink);
+    padding: 7px 13px;
+    border-radius: 100px;
+    font-size: 12.5px;
+    cursor:pointer;
+    transition: background .15s ease;
+  }
+  .chip:hover{ background: var(--chip-hover); }
+
+  .chat{
+    flex:1;
+    overflow-y:auto;
+    padding: 24px 28px;
+    display:flex;
+    flex-direction:column;
+    gap: 16px;
+  }
+  .msg{
+    max-width: 82%;
+    line-height:1.55;
+    font-size:15.5px;
+    padding: 12px 16px;
+    border-radius: 14px;
+    white-space:pre-wrap;
+  }
+  .msg.user{
+    align-self:flex-end;
+    background: var(--bubble-user);
+    color: var(--bubble-user-text);
+    border-bottom-right-radius:3px;
+  }
+  .msg.ai{
+    align-self:flex-start;
+    background: var(--bubble-ai);
+    border:1px solid var(--line);
+    border-bottom-left-radius:3px;
+  }
+  .msg.ai .followup{
+    display:block;
+    margin-top:10px;
+    color: var(--rust);
+    font-style: italic;
+    font-size: 14.5px;
+  }
+  .msg.voice{
+    align-self:flex-start;
+    background: var(--chip);
+    border-left: 3px solid var(--rust);
+    border-radius: 10px;
+    padding: 12px 14px;
+    max-width: 82%;
+    font-size: 14.5px;
+    line-height: 1.5;
+  }
+  .msg.voice .voice-label{
+    display:block;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--ink-soft);
+    margin-bottom: 6px;
+  }
+  .msg.voice .voice-quote{
+    font-style: italic;
+  }
+  .msg.voice .voice-note{
+    display:block;
+    margin-top: 8px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 11px;
+    color: var(--ink-soft);
+  }
+  .msg.system{
+    align-self:center;
+    color: var(--ink-soft);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 12.5px;
+    text-align:center;
+    max-width:90%;
+  }
+
+  form{
+    display:flex;
+    gap:10px;
+    padding: 18px 28px 10px;
+    border-top:1px solid var(--line);
+  }
+  textarea{
+    flex:1;
+    resize:none;
+    border:1px solid var(--line);
+    border-radius: 12px;
+    padding: 12px 14px;
+    font-family: Georgia, serif;
+    font-size: 15px;
+    background: var(--bg);
+    color: var(--ink);
+    min-height: 46px;
+    max-height: 140px;
+  }
+  textarea:focus{ outline: 1.5px solid var(--rust); }
+  button.send{
+    border:none;
+    background: var(--rust);
+    color:#fff;
+    padding: 0 20px;
+    border-radius: 12px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 14px;
+    cursor:pointer;
+    transition: background .15s ease;
+  }
+  button.send:hover{ background: var(--rust-dark); }
+
+  footer{
+    padding: 6px 28px 22px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 11px;
+    color: var(--ink-soft);
+    line-height:1.5;
+    text-align:center;
+  }
+
+  .chat::-webkit-scrollbar{ width:8px; }
+  .chat::-webkit-scrollbar-thumb{ background: var(--line); border-radius:8px; }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header>
+    <h1>Nobody Warned You</h1>
+    <p>This is for the stuff that shows up when one of you may be going through hormonal changes, and the other isn't. Know that you're not alone in this. Tell me what's going on, or tap a topic below if that's easier.</p>
+  </header>
+
+  <div class="topics" id="topics"></div>
+
+  <div class="chat" id="chat">
+    <div class="msg system">This is a companion, not advice. It reflects what you describe back to you &mdash; it won't tell you what to do, and it won't take sides.</div>
+    <div class="msg ai">You don't need the right words for this. Say what's bugging you, what you noticed today that felt off, or what you're confused about.</div>
+  </div>
+
+  <form id="form">
+    <textarea id="input" placeholder="Say what's happening, in your own words..." rows="1"></textarea>
+    <button class="send" type="submit">Send</button>
+  </form>
+
+  <footer>
+    Not a medical resource. Not a therapist. Won't diagnose, advise, or say who's right.<br>
+    What you type here may be collected anonymously to help improve this tool.
+  </footer>
+</div>
+
+<script>
+// ---------------------------------------------------------------
+// KNOWLEDGE BASE
+// Each entry: id, label (for topic chips), perspective ("self" if
+// omitted -- "self" = written for the person going through hormonal
+// change, "partner" = written for the partner who isn't), keywords
+// (weighted by phrase length), reflection (the core response),
+// followUp (optional gentle question, or null), voice (optional
+// composite testimonial: { quote, note }, shown as its own bubble
+// after the reflection -- always labeled as a composite, never a
+// real person's exact words).
+// Edit/extend this array freely -- it's the whole content engine.
+// ---------------------------------------------------------------
+const KB = [
+  {
+    id: "irritation",
+    label: "Irritation over small things",
+    keywords: ["irritated", "irritation", "annoyed", "annoying", "snap at", "snapped at",
+      "short temper", "chewing", "breathing too loud", "small thing", "rage",
+      "on edge", "everything bugs me", "set me off", "so irritable"],
+    reflection: "A chewing sound or a slightly-too-loud sigh making you want to leave the room isn't you being petty. Your nervous system has turned the volume up on everything, so the small stuff registers loudest. It doesn't mean you don't love them. It means you're running on less patience than you used to have.",
+    followUp: "What's the last small thing that set you off?"
+  },
+  {
+    id: "confusion-needs",
+    label: "Confusion about your own needs",
+    keywords: ["don't know what i need", "don't know what i want", "confused about what i need",
+      "can't tell what i need", "unsure what i need", "lost touch with myself",
+      "don't know what's wrong", "not sure what i need", "i'm not happy"],
+    reflection: "Not knowing what you need isn't a character flaw. It's what happens when the things that used to work stop working, and nothing's replaced them yet. You're allowed to not have the answer. Most women going through this don't either, they just don't say it.",
+    followUp: "Is it more that you don't know what you want, or that what you wanted has changed?"
+  },
+  {
+    id: "is-it-me",
+    label: "The “is it me or them” question",
+    keywords: ["is it me or them", "is it me or her", "do we need therapy", "whose fault",
+      "am i the problem", "is this normal", "is it me", "my fault or hers", "my fault or his"],
+    reflection: "That question doesn't have a clean answer. Anyone who gives you one too fast is skipping steps. Hormonal change and relationship strain can look identical from the inside, irritation, distance, doubt, so it's genuinely hard to tell which one you're in. You don't have to solve that today.",
+    followUp: null
+  },
+  {
+    id: "mirror",
+    label: "Not recognising yourself in the mirror",
+    keywords: ["don't recognize myself", "don't recognise myself", "who is this",
+      "look like a stranger", "don't feel like myself", "not myself anymore",
+      "don't know who i am", "stranger in the mirror"],
+    reflection: "Looking in the mirror and not finding the person you expect is disorienting in a way that's hard to explain. Your face, your body, even your reactions can start to feel like they belong to someone else. That's real. It's not vanity, and it's not dramatic.",
+    followUp: "What's changed that surprised you most?"
+  },
+  {
+    id: "weight-esteem",
+    label: "Weight gain and self-esteem",
+    keywords: ["weight gain", "gained weight", "my body", "don't feel attractive",
+      "hate my body", "self esteem", "clothes don't fit", "gaining weight",
+      "feel ugly", "body's changing"],
+    reflection: "Weight showing up in new places, clothes fitting differently, feeling less like yourself in your own skin, that's a physical fact of what your body's doing right now. It's not a referendum on your worth or your effort. You're allowed to be frustrated without deciding it means something bigger about you.",
+    followUp: null
+  },
+  {
+    id: "brain-fog",
+    label: "Brain fog",
+    keywords: ["brain fog", "can't think straight", "cant think straight", "can't focus",
+      "cant focus", "forgetting things", "losing my words", "foggy", "can't concentrate",
+      "cant concentrate", "memory's going", "spacing out", "brain isn't working"],
+    reflection: "Losing your train of thought mid-sentence, blanking on a word you use every day, forgetting why you walked into a room, that's not carelessness. It's real, and it's physical. It doesn't stay inside work hours either, it shows up in conversations, in the middle of tasks, standing in your own kitchen. That's what makes it so disorienting.",
+    followUp: "Where does it show up most for you?"
+  },
+  {
+    id: "partner-cant-relate",
+    label: "Annoyance that your partner can't relate",
+    keywords: ["can't relate", "doesn't understand", "doesn't get it", "hasn't gone through this",
+      "she's not there yet", "he's not there yet", "ahead of her", "ahead of him",
+      "behind me", "younger than me", "not going through it"],
+    reflection: "There's a particular loneliness in going through something your partner hasn't hit yet, not because they don't care, but because they can't reach you there. You can be loved completely and still be alone in this specific way. Both things are true at once.",
+    followUp: null
+  },
+  {
+    id: "wanting-to-be-understood",
+    label: "Wanting your partner to understand",
+    keywords: ["when will she understand", "when will he understand", "how do i make her understand",
+      "how do i make him understand", "will never understand until", "won't understand until she",
+      "how do i get her to understand", "make her understand what i'm going through",
+      "make him understand what i'm going through"],
+    reflection: "Wanting her to finally get it isn't asking too much, it's asking not to feel alone in your own experience. But understanding can't be manufactured on demand, no matter how clearly you explain it, because she's working from a body that hasn't lived this yet. That gap isn't something you did wrong. It's not something you can talk your way out of either.",
+    followUp: "What would it feel like if she understood, even a little?"
+  },
+  {
+    id: "partner-blame",
+    label: "Watching your partner take blame or pull back",
+    keywords: ["she blames herself", "he blames himself", "blaming herself", "blaming himself",
+      "pulls away", "pulls back", "pulling away", "pulling back",
+      "thinks it's her fault", "thinks it's his fault",
+      "tiptoeing around me", "pulling away from me", "shutting down"],
+    reflection: "Watching someone you love absorb blame that isn't theirs, or quietly retreat because they don't know what else to do, is its own kind of hard to witness. You didn't ask them to do that. You probably can't talk them out of it either.",
+    followUp: null
+  },
+  {
+    id: "picking-fights",
+    label: "Picking fights that aren't really about anything",
+    keywords: ["picking fights", "fighting about nothing", "argue over nothing",
+      "snapped at her", "snapped at him", "blew up over", "small argument turned into",
+      "fight about nothing", "stupid argument"],
+    reflection: "A fight about the dishwasher is rarely about the dishwasher. When the real thing underneath is hard to name, it finds smaller, easier things to attach itself to. That doesn't make the fight fake - it makes it a signal pointing at something else.",
+    followUp: "Any idea what the fight was actually about, underneath?"
+  },
+  {
+    id: "seeking-relief",
+    label: "Wanting something to fix it",
+    keywords: ["what can i do", "how do i fix this", "feel normal again", "make this better",
+      "who brings it up", "should we get help", "need help with this", "want relief",
+      "fix us", "fix myself", "fix this", "feel like myself again", "make it stop"],
+    reflection: "Wanting this fixed, wanting to feel normal again, wondering who should say something first, that's not weakness. It's what wanting relief looks like. Wanting help doesn't mean something's broken in you or the relationship. It means you've noticed something's hard.",
+    followUp: "What would 'better' even look like for you right now?",
+    voice: {
+      quote: "For a long time I thought if I could just white-knuckle it, we'd get back to normal. It took me way too long to realize wanting outside help wasn't a failure, it was actually the first thing that helped.",
+      note: "A composite of real conversations, not one person's exact story."
+    }
+  },
+  {
+    id: "mismatch-not-libido",
+    label: "Lack of connection as mismatch, not libido",
+    keywords: ["not about sex", "not about libido", "feels disconnected",
+      "emotional distance", "not physical", "more than sex", "connection not sex",
+      "sex drive", "don't want sex", "no interest in sex"],
+    reflection: "It's easy to file this under 'low sex drive' and stop looking further. But distance isn't always about desire, it can be about timing, energy, trust, or something else entirely, with sex just the most visible place it shows up. Calling it connection instead of libido matters. It stops you chasing the wrong fix.",
+    followUp: null,
+    voice: {
+      quote: "We kept talking about my sex drive like it was the whole problem. It wasn't until months later I realized what I actually needed was to feel like she was choosing me again. It had nothing to do with hormones at all.",
+      note: "A composite of real conversations, not one person's exact story."
+    }
+  },
+  {
+    id: "retrospective-apology",
+    label: "The retrospective apology",
+    keywords: ["i get it now", "wish i'd known", "understand now that i'm going through it",
+      "should have been more patient", "i owe an apology", "now that i'm in it",
+      "i get it now that i'm going through it too", "makes sense now"],
+    reflection: "Realizing, after the fact, that you owe someone an apology you can't fully give is its own strange grief. That recognition is worth something even late. It doesn't erase what happened. But it's not nothing either.",
+    followUp: null
+  },
+  {
+    id: "menopause-uncertainty",
+    label: "Not knowing if this is menopause",
+    perspective: "self",
+    keywords: ["how do i know if i'm going through menopause", "how do i know if im going through menopause",
+      "am i in menopause", "am i in perimenopause", "is this menopause",
+      "how do i know if this is menopause", "could this be menopause"],
+    reflection: "That's not something I can tell you, and I'd be overstepping if I tried. What I can say is that not knowing is its own kind of exhausting, wondering if what you're feeling has a name, or if you're imagining it. That uncertainty is real, even without a diagnosis attached to it.",
+    followUp: null
+  },
+  {
+    id: "partner-eggshells",
+    label: "Walking on eggshells",
+    perspective: "partner",
+    keywords: ["walking on eggshells", "waiting for her to snap", "never know what will set her off",
+      "tiptoeing around her", "afraid to say the wrong thing", "don't know what will upset her",
+      "dont know what will upset her"],
+    reflection: "Never knowing which version of her you're going to get today is its own kind of tiring, and it's fair to feel exhausted by it even while you understand where it's coming from. Understanding why doesn't cancel out how much energy it takes to brace yourself constantly. You're allowed to be tired without that meaning you're not being supportive.",
+    followUp: null
+  },
+  {
+    id: "partner-nothing-helps",
+    label: "Feeling like nothing you do helps",
+    perspective: "partner",
+    keywords: ["nothing i do is right", "nothing i do helps", "everything i try backfires",
+      "she pushes me away when i try", "i try to help and she", "rejected when i try",
+      "can't get it right", "cant get it right"],
+    reflection: "Trying to help and watching it land wrong, again, is genuinely demoralizing, especially when you can't tell in advance what will help and what will make things worse. That's not a sign you're bad at this. It's a sign the ground keeps shifting under both of you.",
+    followUp: null
+  },
+  {
+    id: "partner-bad-guy",
+    label: "Wondering if you're the bad guy",
+    perspective: "partner",
+    keywords: ["am i the bad guy", "am i doing something wrong", "did i cause this",
+      "what am i doing wrong"],
+    reflection: "Being told 'it's not you' over and over doesn't always make it feel less like it's you. That gap between what you're told and what you feel is real, and it doesn't make you selfish for still wondering.",
+    followUp: null
+  },
+  {
+    id: "partner-missing-her",
+    label: "Missing who she used to be",
+    perspective: "partner",
+    keywords: ["miss who she used to be", "miss the old her", "she's not who i married",
+      "shes not who i married", "she's not who i fell in love with", "grieving who she was",
+      "different person now"],
+    reflection: "Missing someone who's still right in front of you is a strange, specific kind of grief, and it doesn't mean you love who she is now any less. You're allowed to miss a version of her and still be here for who she's becoming.",
+    followUp: null
+  },
+  {
+    id: "partner-how-to-help",
+    label: "Not knowing how to help",
+    perspective: "partner",
+    keywords: ["don't know how to help her", "dont know how to help her", "don't know how to support her",
+      "dont know how to support her", "what can i do to help her", "i want to help but",
+      "how do i support her"],
+    reflection: "Wanting to help and genuinely not knowing what helping even looks like right now is its own frustration. Not having the answer doesn't mean you're not showing up.",
+    followUp: null
+  }
+];
+
+const FALLBACKS = [
+  "I don't have language for that one yet, this is a small, still-growing collection. Say more, or pick a topic above to start somewhere.",
+  "That one's outside what I've got words for right now. Say more, or tap a topic above and see if it's closer."
+];
+
+// Shown when a user answers a follow-up question (like "what's the
+// last small thing that set you off?"). These replies aren't run
+// through the matcher -- they're answers, not new topics -- so they
+// get a dedicated, rotating acknowledgment instead of the fallback.
+// Kept reflection-only: no advice, no suggestions for what to do.
+const FOLLOWUP_ACKS = [
+  "Thank you for saying that out loud. That kind of thing is easy to write off as nothing, but it's not nothing, noticing it counts.",
+  "That's real, and it's worth naming, even if it feels small next to everything else going on.",
+  "You don't have to make sense of it right now. Just having said it is enough for today."
+];
+
+// ---------------------------------------------------------------
+// MATCHING
+// Simple weighted keyword scoring: longer phrase matches score
+// higher than single-word matches. No API calls, runs entirely
+// in the browser.
+// ---------------------------------------------------------------
+function scoreEntry(entry, text){
+  const lower = text.toLowerCase();
+  let score = 0;
+  for(const kw of entry.keywords){
+    if(lower.includes(kw)){
+      score += kw.split(" ").length; // multi-word phrase = stronger signal
+    }
+  }
+  return score;
+}
+
+function findBestMatch(text){
+  let best = null, bestScore = 0;
+  for(const entry of KB){
+    const s = scoreEntry(entry, text);
+    if(s > bestScore){
+      bestScore = s;
+      best = entry;
+    }
+  }
+  return bestScore > 0 ? best : null;
+}
+
+// ---------------------------------------------------------------
+// UI
+// ---------------------------------------------------------------
+const chat = document.getElementById("chat");
+const form = document.getElementById("form");
+const input = document.getElementById("input");
+const topicsBar = document.getElementById("topics");
+
+// True right after the AI has asked a follow-up question. The next
+// message the user sends is treated as an answer to that question,
+// not a new topic, so it skips the matcher entirely.
+let awaitingFollowUp = false;
+
+// ---------------------------------------------------------------
+// LOGGING
+// Sends what a user types to a Google Form, anonymously, so the
+// content (not any identity) can be reviewed later. Disclosed to
+// users in the footer. Uses mode:"no-cors" because Google Forms
+// doesn't return a readable response to browser fetches -- this
+// is a fire-and-forget submission, not a confirmed one.
+// ---------------------------------------------------------------
+const FORM_ACTION_URL = "https://docs.google.com/forms/d/e/1FAIpQLSfjw9dQK_AIElgiVe-XXK1C3F2nuMJvpp_wkk51iU78GO7ixA/formResponse";
+const FORM_ENTRY_ID = "entry.1766193004";
+
+function logUserMessage(text){
+  const body = new URLSearchParams();
+  body.set(FORM_ENTRY_ID, text);
+  fetch(FORM_ACTION_URL, {
+    method: "POST",
+    mode: "no-cors",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body
+  }).catch(() => {
+    // Silently ignore -- logging should never block or break the
+    // conversation for the user.
+  });
+}
+
+function addMessage(text, role, followUp){
+  const div = document.createElement("div");
+  div.className = "msg " + role;
+  div.textContent = text;
+  if(followUp){
+    const f = document.createElement("span");
+    f.className = "followup";
+    f.textContent = followUp;
+    div.appendChild(f);
+  }
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+// Renders a composite testimonial as its own, visually distinct
+// bubble -- separate from the AI's reflection voice, always labeled
+// as a composite, never presented as one real person's exact story.
+function addVoice(voice){
+  if(!voice) return;
+  const div = document.createElement("div");
+  div.className = "msg voice";
+
+  const label = document.createElement("span");
+  label.className = "voice-label";
+  label.textContent = "From someone else who's been here";
+  div.appendChild(label);
+
+  const quote = document.createElement("span");
+  quote.className = "voice-quote";
+  quote.textContent = "“" + voice.quote + "”";
+  div.appendChild(quote);
+
+  const note = document.createElement("span");
+  note.className = "voice-note";
+  note.textContent = voice.note;
+  div.appendChild(note);
+
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function respond(userText){
+  const match = findBestMatch(userText);
+  if(match){
+    addMessage(match.reflection, "ai", match.followUp);
+    if(match.voice){
+      setTimeout(() => addVoice(match.voice), 300);
+    }
+    awaitingFollowUp = !!match.followUp;
+  } else {
+    // No KB entry matched -- this is the gap we actually want to see,
+    // so only unmatched prompts get logged, not every message.
+    logUserMessage(userText);
+    const fb = FALLBACKS[Math.floor(Math.random() * FALLBACKS.length)];
+    addMessage(fb, "ai", null);
+    awaitingFollowUp = false;
+  }
+}
+
+// Acknowledges an answer to a follow-up question -- deliberately
+// skips the matcher, since this reply is answering the AI, not
+// introducing a new topic to look up.
+function respondToFollowUp(){
+  const ack = FOLLOWUP_ACKS[Math.floor(Math.random() * FOLLOWUP_ACKS.length)];
+  addMessage(ack, "ai", null);
+  awaitingFollowUp = false;
+}
+
+form.addEventListener("submit", (e) => {
+  e.preventDefault();
+  const text = input.value.trim();
+  if(!text) return;
+  addMessage(text, "user", null);
+  input.value = "";
+  input.style.height = "auto";
+  if(awaitingFollowUp){
+    setTimeout(() => respondToFollowUp(), 350);
+  } else {
+    setTimeout(() => respond(text), 350);
+  }
+});
+
+input.addEventListener("input", () => {
+  input.style.height = "auto";
+  input.style.height = Math.min(input.scrollHeight, 140) + "px";
+});
+
+input.addEventListener("keydown", (e) => {
+  if(e.key === "Enter" && !e.shiftKey){
+    e.preventDefault();
+    form.requestSubmit();
+  }
+});
+
+// ---------------------------------------------------------------
+// TOPIC CHIPS -- two-step drill-down instead of a flat wall of
+// every topic at once. Step 1: pick a perspective (self vs. partner).
+// Step 2: see only that perspective's topics, plus a way back.
+// Keeps the chip bar scannable as the KB keeps growing.
+// ---------------------------------------------------------------
+function makeChip(label, onClick){
+  const chip = document.createElement("button");
+  chip.type = "button";
+  chip.className = "chip";
+  chip.textContent = label;
+  chip.addEventListener("click", onClick);
+  return chip;
+}
+
+function selectTopic(entry){
+  addMessage(entry.label, "user", null);
+  setTimeout(() => {
+    addMessage(entry.reflection, "ai", entry.followUp);
+    if(entry.voice){
+      setTimeout(() => addVoice(entry.voice), 300);
+    }
+    awaitingFollowUp = !!entry.followUp;
+  }, 300);
+}
+
+function renderPerspectiveChips(){
+  topicsBar.innerHTML = "";
+  topicsBar.appendChild(
+    makeChip("This is happening to me", () => renderTopicChips("self"))
+  );
+  topicsBar.appendChild(
+    makeChip("This is happening to my partner", () => renderTopicChips("partner"))
+  );
+}
+
+function renderTopicChips(perspective){
+  topicsBar.innerHTML = "";
+  topicsBar.appendChild(makeChip("← Back", renderPerspectiveChips));
+  KB.filter(entry => (entry.perspective || "self") === perspective)
+    .forEach(entry => {
+      topicsBar.appendChild(makeChip(entry.label, () => selectTopic(entry)));
+    });
+}
+
+renderPerspectiveChips();
+</script>
+
+</body>
+</html>
